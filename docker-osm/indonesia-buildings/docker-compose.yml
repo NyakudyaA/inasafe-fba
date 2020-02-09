@@ -1,5 +1,6 @@
 version: '2.1'
 volumes:
+  repo-volume:
   osm-postgis-data:
   import_done:
   import_queue:
@@ -9,19 +10,24 @@ volumes:
 services:
   db:
     # About the postgresql version, it should match in the dockerfile of docker-imposm3
-    image: kartoza/postgis:12.0
+    image: kartoza/postgis:11.0-2.5
     restart: always
-    hostname: db
     environment:
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASS=${POSTGRES_PASS}
+      - POSTGRES_HOST=${POSTGRES_HOST}
       - ALLOW_IP_RANGE=${POSTGRES_HBA_RANGE}
       - IP_LIST=${ALLOW_LISTEN_RANGE}
+      - ARCHIVE_BASE_URL=${ARCHIVE_BASE_URL}
+      - POSTGREST_BASE_URL=${POSTGREST_BASE_URL}
+      - REPO_ROOT=${REPO_ROOT}
     volumes:
      - osm-postgis-data:/var/lib/postgresql
+     - repo-volume:/opt/inasafe-fba
     ports:
       - "${POSTGRES_PORT}:5432"
+    network_mode: bridge
 
   osm_downloader:
     image: kartoza/docker-osm:pbf-downloader
@@ -35,6 +41,7 @@ services:
       - BASE_URL=${PBF_URL}
       - MAPPING_URL=${MAPPING_URL}
       - GEOJSON_URL=${GEOJSON_URL}
+    network_mode: bridge
 
   imposm:
     image: kartoza/docker-osm:imposm-latest
@@ -78,6 +85,7 @@ services:
       # Use clip in the database
       - CLIP=${CLIP_BOOLEAN}
     command: bash -c "while [ ! -f /home/settings/country.pbf ] ; do sleep 1; done && python3 -u /home/importer.py"
+    network_mode: bridge
 
   osmupdate:
     image: kartoza/docker-osm:osmupdate-latest
@@ -112,32 +120,32 @@ services:
       # if 0, then no update will be done, only the first initial import from the PBF
       - TIME=${UPDATE_TIME}
     command: bash -c "while [ ! -f /home/settings/country.pbf ] ; do sleep 1; done && python3 -u /home/download.py"
-
-  osmenrich:
-    image: kartoza/docker-osm:osmenrich-latest
-    restart: always
-    volumes:
-      - osm_data:/home/settings
-      - import_done:/home/import_done
-      - import_queue:/home/import_queue
-      - cache:/home/cache
-    links:
-      - db:db
-    environment:
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASS=${POSTGRES_PASS}
-      - POSTGRES_PORT=${PG_PORT}
-      - POSTGRES_HOST=db
-      # These are all currently the defaults but listed here for your
-      # convenience if you want to change them
-      # folder for diff which hasn't been imported yet
-      - IMPORT_QUEUE=import_queue
-      # folder for diff which has been imported
-      - IMPORT_DONE=import_done
-      # seconds between 2 executions of the script
-      # if 0, then no update will be done, only the first initial import from the PBF
-      - TIME=${UPDATE_TIME}
+    network_mode: bridge
+#  osmenrich:
+#    image: kartoza/docker-osm:osmenrich-latest
+#    restart: always
+#    volumes:
+#      - osm_data:/home/settings
+#      - import_done:/home/import_done
+#      - import_queue:/home/import_queue
+#      - cache:/home/cache
+#    links:
+#      - db:db
+#    environment:
+#      - POSTGRES_DB=${POSTGRES_DB}
+#      - POSTGRES_USER=${POSTGRES_USER}
+#      - POSTGRES_PASS=${POSTGRES_PASS}
+#      - POSTGRES_PORT=${PG_PORT}
+#      - POSTGRES_HOST=db
+#      # These are all currently the defaults but listed here for your
+#      # convenience if you want to change them
+#      # folder for diff which hasn't been imported yet
+#      - IMPORT_QUEUE=import_queue
+#      # folder for diff which has been imported
+#      - IMPORT_DONE=import_done
+#      # seconds between 2 executions of the script
+#      # if 0, then no update will be done, only the first initial import from the PBF
+#      - TIME=${UPDATE_TIME}
 
   postgrest:
     image: postgrest/postgrest
@@ -150,6 +158,7 @@ services:
       - db:db
     ports:
       - "${PGRST_PORT}:3000"
+    network_mode: bridge
 
   swagger:
     image: swaggerapi/swagger-ui
@@ -157,3 +166,23 @@ services:
       - "${SWAGGER_UI_PORT}:8080"
     environment:
       API_URL: ${PGRST_SERVER_PROXY_URI}
+    network_mode: bridge
+
+  testrunner:
+      image: python:3
+      entrypoint: ${REPO_ROOT}/fixtures/tests/scripts/testrunner-entrypoint.sh
+      working_dir: ${REPO_ROOT}/fixtures/tests
+      command: tail -f /dev/null
+      environment:
+        POSTGRES_DB: ${POSTGRES_DB}
+        POSTGRES_USER: ${POSTGRES_USER}
+        POSTGRES_PASS: ${POSTGRES_PASS}
+        POSTGRES_PORT: ${PG_PORT}
+        POSTGRES_HOST: db
+        REPO_ROOT: ${REPO_ROOT}
+        TEST_PACKAGE_ROOT: ${REPO_ROOT}/fixtures/tests
+      links:
+        - db
+      volumes:
+        - repo-volume:${REPO_ROOT}
+      network_mode: bridge

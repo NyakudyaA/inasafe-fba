@@ -1,6 +1,11 @@
 version: '2.1'
 volumes:
   # When using bind mount, make sure all these folders exists
+  repo-volume:
+    driver_opts:
+      type: none
+      device: ${PWD}/../../
+      o: bind
   osm-postgis-data:
     driver_opts:
       type: none
@@ -16,5 +21,24 @@ volumes:
   osm_data:
     driver_opts:
       type: none
-      device: ${PWD}/docker-osm-settings/settings
+      device: ${PWD}/docker-osm-settings/custom_settings
       o: bind
+
+services:
+  db:
+    build:
+      dockerfile: ${PWD}/docker/Dockerfile
+      context: ${PWD}/../../
+    image: local/postgis:11.0-2.5
+    entrypoint: ${REPO_ROOT}/fixtures/tests/scripts/postgis-entrypoint.sh
+    command: /usr/sbin/sshd -D
+    ports:
+      - "${SSHD_PORT}:22"
+
+  imposm:
+    environment:
+      REPO_ROOT: ${REPO_ROOT}
+    entrypoint: ""
+    command: tail -f /dev/null
+    volumes:
+      - repo-volume:/opt/inasafe-fba
