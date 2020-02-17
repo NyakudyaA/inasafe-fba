@@ -24,7 +24,6 @@ build-archive:
 
 backend-up:
 	@cd ../docker-osm/indonesia-buildings; $(MAKE) up SERVICE=$(SERVICE)
-#	@cd ../geoserver; $(MAKE) up
 
 backend-stop:
 	@cd ../docker-osm/indonesia-buildings; $(MAKE) stop SERVICE=$(SERVICE)
@@ -50,6 +49,9 @@ backend-test:
 backend-forecast-test:
 	@cd ../docker-osm/indonesia-buildings; $(MAKE) forecast-test
 
+backend-import-fixtures:
+	@cd ../docker-osm/indonesia-buildings; $(MAKE) import-fixtures TARGET=$(TARGET)
+
 wait-db-ready:
 	@cd ../docker-osm/indonesia-buildings; $(MAKE) wait-db-ready
 
@@ -58,4 +60,12 @@ wait-backend-ready:
 
 backend-down:
 	@cd ../docker-osm/indonesia-buildings; $(MAKE) down
-#	@cd ../geoserver; $(MAKE) down
+
+geoserver-up:
+	@cd ../geoserver; $(MAKE) up
+
+geoserver-down:
+	@cd ../geoserver; $(MAKE) down
+
+wait-geoserver-ready:
+	@cd ../geoserver; $(MAKE) wait-geoserver-ready
